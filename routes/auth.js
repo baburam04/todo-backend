@@ -8,24 +8,18 @@ const bcrypt = require('bcryptjs');
 // Helper function to create JWT token
 const generateToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '1h' // Default 1 hour if not set
+    expiresIn: process.env.JWT_EXPIRE || '1h'
   });
 };
 
 // Register
 router.post('/register', async (req, res) => {
   try {
-    // Validate data
-    const { error } = registerValidation(req.body);
-    if (error) {
-      return res.status(400).json({ 
-        success: false,
-        message: error.details[0].message 
-      });
-    }
+    // Validate and sanitize data
+    const validatedData = registerValidation(req.body);
 
     // Check if user exists
-    const emailExists = await User.findOne({ email: req.body.email });
+    const emailExists = await User.findOne({ email: validatedData.email });
     if (emailExists) {
       return res.status(400).json({
         success: false,
@@ -35,13 +29,13 @@ router.post('/register', async (req, res) => {
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(req.body.password, salt);
+    const hashedPassword = await bcrypt.hash(validatedData.password, salt);
 
     // Create user
     const user = new User({
-      name: req.body.name,
-      email: req.body.email,
-      password: hashedPassword // Store hashed password
+      name: validatedData.name,
+      email: validatedData.email,
+      password: hashedPassword
     });
 
     const savedUser = await user.save();
@@ -49,24 +43,23 @@ router.post('/register', async (req, res) => {
     // Generate token
     const token = generateToken(savedUser._id);
 
-    // Omit password in response
-    const userResponse = {
-      id: savedUser._id,
-      name: savedUser.name,
-      email: savedUser.email
-    };
-
+    // Prepare response
     res.status(201).json({
       success: true,
       token,
-      user: userResponse
+      user: {
+        id: savedUser._id,
+        name: savedUser.name,
+        email: savedUser.email
+      }
     });
 
   } catch (err) {
     console.error('Registration error:', err);
-    res.status(500).json({
+    const statusCode = err.message.includes('validation') ? 400 : 500;
+    res.status(statusCode).json({
       success: false,
-      message: 'Server error during registration'
+      message: err.message || 'Server error during registration'
     });
   }
 });
@@ -74,54 +67,47 @@ router.post('/register', async (req, res) => {
 // Login
 router.post('/login', async (req, res) => {
   try {
-    // Validate data
-    const { error } = loginValidation(req.body);
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: error.details[0].message
-      });
-    }
+    // Validate and sanitize data (will automatically remove 'name' if present)
+    const { email, password } = loginValidation(req.body);
 
     // Check if user exists
-    const user = await User.findOne({ email: req.body.email }).select('+password');
+    const user = await User.findOne({ email }).select('+password');
     if (!user) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid credentials' // Generic message for security
+        message: 'Invalid credentials'
       });
     }
 
     // Check password
-    const isMatch = await bcrypt.compare(req.body.password, user.password);
+    const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid credentials' // Generic message for security
+        message: 'Invalid credentials'
       });
     }
 
     // Generate token
     const token = generateToken(user._id);
 
-    // Omit password in response
-    const userResponse = {
-      id: user._id,
-      name: user.name,
-      email: user.email
-    };
-
+    // Prepare response
     res.json({
       success: true,
       token,
-      user: userResponse
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email
+      }
     });
 
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({
+    const statusCode = err.message.includes('validation') ? 400 : 500;
+    res.status(statusCode).json({
       success: false,
-      message: 'Server error during login'
+      message: err.message || 'Server error during login'
     });
   }
 });
