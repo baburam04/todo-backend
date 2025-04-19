@@ -8,7 +8,7 @@ const schemas = {
     password: Joi.string().min(6).max(30).required()
       .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{6,}$/)
       .message('Password must contain at least one uppercase letter, one lowercase letter, and one number')
-  }),
+  }).options({ allowUnknown: false }), // Strict validation for registration
 
   login: Joi.object({
     email: Joi.string()
@@ -31,7 +31,7 @@ const schemas = {
         'string.min': 'Password must be at least {#limit} characters',
         'any.required': 'Password is required'
       })
-  }),
+  }).options({ stripUnknown: true }), // Remove unknown fields (like 'name') during login
 
   task: Joi.object({
     title: Joi.string().min(3).max(100).required(),
@@ -40,12 +40,27 @@ const schemas = {
   })
 };
 
-// Validation functions
+// Enhanced validation functions
 module.exports = {
-  registerValidation: (data) => schemas.register.validate(data),
-  loginValidation: (data) => schemas.login.validate(data),
-  taskValidation: (data) => schemas.task.validate(data),
+  registerValidation: (data) => {
+    const { error, value } = schemas.register.validate(data);
+    if (error) throw new Error(error.details[0].message);
+    return value;
+  },
 
-  // Optional: Export schemas directly if needed elsewhere
-  schemas
+  loginValidation: (data) => {
+    // Explicitly remove 'name' field if present
+    const sanitizedData = (({ email, password }) => ({ email, password }))(data);
+    const { error, value } = schemas.login.validate(sanitizedData);
+    if (error) throw new Error(error.details[0].message);
+    return value;
+  },
+
+  taskValidation: (data) => {
+    const { error, value } = schemas.task.validate(data);
+    if (error) throw new Error(error.details[0].message);
+    return value;
+  },
+
+  schemas // Export schemas if needed elsewhere
 };
