@@ -9,7 +9,10 @@ const taskRoutes = require('./routes/tasks');
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: "https://todo-list7.netlify.app", // Your frontend URL
+    credentials: true
+  }));
 app.use(express.json());
 app.use(morgan('dev'));
 
