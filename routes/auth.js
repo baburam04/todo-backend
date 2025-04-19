@@ -112,4 +112,44 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// Get current user (Add this new endpoint)
+router.get('/me', async (req, res) => {
+  try {
+    // Get token from header
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'No token provided'
+      });
+    }
+
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Get user
+    const user = await User.findById(decoded.id).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      user
+    });
+
+  } catch (err) {
+    console.error('Auth check error:', err);
+    res.status(401).json({
+      success: false,
+      message: 'Not authorized'
+    });
+  }
+});
+
 module.exports = router;
