@@ -3,54 +3,127 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { registerValidation, loginValidation } = require('../validation');
+const bcrypt = require('bcryptjs');
+
+// Helper function to create JWT token
+const generateToken = (userId) => {
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRE || '1h' // Default 1 hour if not set
+  });
+};
 
 // Register
 router.post('/register', async (req, res) => {
-  // Validate data
-  const { error } = registerValidation(req.body);
-  if (error) return res.status(400).json({ message: error.details[0].message });
-
-  // Check if user already exists
-  const emailExists = await User.findOne({ email: req.body.email });
-  if (emailExists) return res.status(400).json({ message: 'Email already exists' });
-
-  // Create new user
-  const user = new User({
-    name: req.body.name,
-    email: req.body.email,
-    password: req.body.password
-  });
-
   try {
-    const savedUser = await user.save();
-    const token = jwt.sign({ id: savedUser._id }, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRE
+    // Validate data
+    const { error } = registerValidation(req.body);
+    if (error) {
+      return res.status(400).json({ 
+        success: false,
+        message: error.details[0].message 
+      });
+    }
+
+    // Check if user exists
+    const emailExists = await User.findOne({ email: req.body.email });
+    if (emailExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email already exists'
+      });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(req.body.password, salt);
+
+    // Create user
+    const user = new User({
+      name: req.body.name,
+      email: req.body.email,
+      password: hashedPassword // Store hashed password
     });
-    res.json({ token });
+
+    const savedUser = await user.save();
+    
+    // Generate token
+    const token = generateToken(savedUser._id);
+
+    // Omit password in response
+    const userResponse = {
+      id: savedUser._id,
+      name: savedUser.name,
+      email: savedUser.email
+    };
+
+    res.status(201).json({
+      success: true,
+      token,
+      user: userResponse
+    });
+
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    console.error('Registration error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during registration'
+    });
   }
 });
 
 // Login
 router.post('/login', async (req, res) => {
-  // Validate data
-  const { error } = loginValidation(req.body);
-  if (error) return res.status(400).json({ message: error.details[0].message });
+  try {
+    // Validate data
+    const { error } = loginValidation(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.details[0].message
+      });
+    }
 
-  // Check if user exists
-  const user = await User.findOne({ email: req.body.email }).select('+password');
-  if (!user) return res.status(400).json({ message: 'Email is not found' });
+    // Check if user exists
+    const user = await User.findOne({ email: req.body.email }).select('+password');
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid credentials' // Generic message for security
+      });
+    }
 
-  // Check if password is correct
-  const validPass = await user.matchPassword(req.body.password);
-  if (!validPass) return res.status(400).json({ message: 'Invalid password' });
+    // Check password
+    const isMatch = await bcrypt.compare(req.body.password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid credentials' // Generic message for security
+      });
+    }
 
-  // Create and assign a token
-  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE
-  });
-  res.json({ token });
+    // Generate token
+    const token = generateToken(user._id);
+
+    // Omit password in response
+    const userResponse = {
+      id: user._id,
+      name: user.name,
+      email: user.email
+    };
+
+    res.json({
+      success: true,
+      token,
+      user: userResponse
+    });
+
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during login'
+    });
+  }
 });
 
 module.exports = router;
