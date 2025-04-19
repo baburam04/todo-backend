@@ -22,13 +22,28 @@ mongoose.connect(process.env.MONGO_URI, {
 .catch(err => console.error('MongoDB connection error:', err));
 
 // Routes
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: 'Welcome to the Todo Backend API',
+    endpoints: {
+      auth: '/api/auth',
+      tasks: '/api/tasks'
+    }
+  });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
+
+// 404 handler for undefined routes
+app.use((req, res) => {
+  res.status(404).json({ message: 'Route not found' });
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ message: 'Something went wrong!' });
+  res.status(500).json({ message: 'Internal server error' });
 });
 
 const PORT = process.env.PORT || 5000;
