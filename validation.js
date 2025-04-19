@@ -11,8 +11,26 @@ const schemas = {
   }),
 
   login: Joi.object({
-    email: Joi.string().min(6).max(50).required().email(),
-    password: Joi.string().min(6).max(30).required()
+    email: Joi.string()
+      .min(6)
+      .max(50)
+      .required()
+      .email()
+      .messages({
+        'string.empty': 'Email cannot be empty',
+        'string.email': 'Please enter a valid email address',
+        'any.required': 'Email is required'
+      }),
+      
+    password: Joi.string()
+      .min(6)
+      .max(30)
+      .required()
+      .messages({
+        'string.empty': 'Password cannot be empty',
+        'string.min': 'Password must be at least {#limit} characters',
+        'any.required': 'Password is required'
+      })
   }),
 
   task: Joi.object({
