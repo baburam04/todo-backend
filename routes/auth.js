@@ -65,35 +65,6 @@ router.post('/register', async (req, res) => {
 });
 
 // Login
-// Add this to your routes/auth.js
-router.get('/verify', async (req, res) => {
-    try {
-      const token = req.header('Authorization')?.replace('Bearer ', '');
-      
-      if (!token) {
-        return res.status(401).json({ success: false, message: 'No token provided' });
-      }
-  
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.id).select('-password');
-      
-      if (!user) {
-        return res.status(401).json({ success: false, message: 'User not found' });
-      }
-  
-      res.json({
-        success: true,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email
-        }
-      });
-    } catch (err) {
-      res.status(401).json({ success: false, message: 'Invalid token' });
-    }
-  });
-  
 router.post('/login', async (req, res) => {
   try {
     // Validate and sanitize data (will automatically remove 'name' if present)
